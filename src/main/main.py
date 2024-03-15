@@ -2,29 +2,24 @@
 import csv
 import time
 from disklist import DiskList
-import sys
 import statistics
+import sys
 
 matri_num = "U2121401C" ## Change accordingly
-
+#matri_num = "A1234013B"
 def main():
 
     years = matri_num[-2]
 
-    if years == '4':
-        year1= '201' + years
-        year2= '202'+ years
-        print("Year 1:",year1)
-        print("Year 2:",year2)
-    elif years == 5 or years == 6 or years == 7 or years == 8 or years == 9:
-        year1='201' + years
-        year2 = '201' + years
-        #year2= '201'+ last_num
-        print("Year 1:",year1)
+    # Choosing the correct years
+    if years == '4' or years == '5' or years == '6' or years == '7' or years == '8' or years == '9':
+        year1= '201' + years 
     else:
         year1='202' + years
-        year2 = '202' + years  
-      
+    
+    print(f"Which year: {year1}")
+    
+    # Choosing correct month range
     month=int(matri_num[-3])
     rangeDict = {
         0: [10, 11, 12],  # October, November, December
@@ -38,7 +33,9 @@ def main():
         8: [8, 9, 10],    # August, September, October
         9: [9, 10, 11]    # September, October, November
     }
-
+    print(f'which month: {month}')
+    
+    # Dictionary Encoding (Data Compression Technique)
     town = int(matri_num[-4])
     townDict = {
         0: "ANG MO KIO",
@@ -53,7 +50,11 @@ def main():
         9: "YISHUN"
     }
     location = townDict[town]
+    print(f'which location: {location}')
+    # Instead of storing strings, we store a number. Takes less storage space and a more efficient way of storing categorical data that has a small number of distinct values
+    # Whenever the data is read, the numerical codes can be replaced back with the corresponding string values using the dictionary.
 
+    # Creating Disklist structure for each column
     dateColumn = DiskList()
     townColumn = DiskList()
     flat_type_Column = DiskList()
@@ -65,15 +66,14 @@ def main():
     lease_commence_date_column = DiskList()
     resale_price_column = DiskList()
 
-    # Create Column store
+    # Creating Column store
     print("initializing column store...")
     start_time = time.time()
 
     with open("src/main/resources/ResalePricesSingapore.csv", 'r') as f:
         reader = csv.DictReader(f)
         data = list(reader)
-        sorted_data = sorted(data, key=lambda x: x['month'])
-        for row in sorted_data:
+        for row in data:
             dateColumn.append(row['month'])
             townColumn.append(row['town'])
             flat_type_Column.append(row['flat_type'])
@@ -89,99 +89,133 @@ def main():
     print(f'column store creation complete in {round(end_time-start_time,4)}s')
 
     # QUERY PROCESSING
-    # Assume memory is able to hold positions
     start_time = time.time()
-    count = 0
     position_dict = {}
-    
-    for i in range(len(dateColumn)):
 
+    position_list_date = DiskList()
+    position_list_town = DiskList()
+    
+    # for i in range(len(dateColumn)):
+
+    #     date = dateColumn[i]
+    #     date_year, date_month = dateColumn[i].split("-")
+
+    #     # Filtering the data based on year and month
+    #     if date_year in (year1, year2) and int(date_month) in rangeDict[month]:
+    #         # Filter by town in column store
+    #         if townColumn[i] == location:
+    #             key = date[0:7]
+    #             #count += 1
+
+    #             if key not in position_dict:
+    #                 position_dict[key] = []
+
+    #             position_dict[key].append(i)
+
+    for i in range(len(dateColumn)):
         date = dateColumn[i]
         date_year, date_month = dateColumn[i].split("-")
 
-        #print(date_month in rangeDict[month])
-        # print(date_month)
-        #if date[:4] in (year1, year2):  # Filter by year(2003,2013) and month in column store
-        if date_year in (year1, year2) and str(date_month) in str(rangeDict[month]):
-            #if str(date_month) in str(rangeDict[month]): 
-            #print(rangeDict[month][j])
-                # Filter by location in column store
-                if townColumn[i] == location:
-                    key = date[0:7]
-                    count += 1
-                    #print("key: ", key)
+        # Filtering the data based on year and month
+        if date_year in (year1) and int(date_month) in rangeDict[month]:
+            position_list_date.append(i)
+    
+    for j in position_list_date:
+        # Filter by town in column store
+        if townColumn[j] == location:
+            position_list_town.append(j)
 
-                    if key not in position_dict:
-                        position_dict[key] = []
+    for k in position_list_town:
+        date = dateColumn[k]
+        key = date[0:7]
+        
+        if key not in position_dict:
+            position_dict[key] = []
 
-                    position_dict[key].append(i)
+        position_dict[key].append(k)
 
+    # Dictionaries to hold std, avg, min statistics for area
     area_dict = {}
+    # Dictionaries to hold std, avg, min statistics for price
     price_dict = {}
 
-    # declare outside to get indi month
-    min_area = 1000000000
-    min_price = 1000000000
+    count = sum(len(value) for value in position_dict.values())
+    min_area = sys.maxsize
+    min_price = sys.maxsize
     min_area_list =[]
     min_price_list =[]
     std_price = []
     std_area = []
     sum_area = 0
     sum_price = 0
-    total_items = 0
-    for year_month, positions in position_dict.items():  
-        # min_area = 1000000000
-        # min_price = 1000000000
-        # min_area_list =[]
-        # min_price_list =[]
-        # sum_area = 0
-        # sum_price = 0
-        # Min price query
+
+    # single scan to find statistics for both area and price
+    for key, positions in position_dict.items():  
         for pos in positions:
+            #price
             curr_price_str = resale_price_column[pos]
             if (curr_price_str == 'M'):
                 continue
+
+            #floor area
+            curr_area_str = floor_area_Column[pos]
+            if (curr_area_str == 'M'):
+                continue
+            
+            #calculating price statistics
             curr_price = int(curr_price_str)
             sum_price = curr_price + sum_price
             std_price.append(curr_price)
+
+            # calculating area statistics
+            curr_area = int(curr_area_str)
+            sum_area = curr_area + sum_area
+            std_area.append(curr_area)
+
             if curr_price <= min_price:
                 min_price_list = []
                 min_price = curr_price
                 min_price_list.append(pos)
-            else:
-                #min_price = curr_price
-                continue
-        # for i in range(len(min_price_list)):
-        #     price_dict[dateColumn[min_price_list[i]], 'Min Price'] = min_price
-        #     price_dict[dateColumn[min_price_list[i]], 'Average Price'] = sum_price/len(position_dict.get(year_month, []))
-
-        # Min area query
-        for pos in positions:
-            curr_area_str = floor_area_Column[pos]
-            if (curr_area_str == 'M'):
-                continue
-            curr_area = int(curr_area_str)
-            sum_area = curr_area + sum_area
-            std_area.append(curr_area)
-            #print("curr_area: ", curr_area)    
             if curr_area <= min_area:
                 min_area_list = []
                 min_area = curr_area
-                #print("min_area: ", min_area)
                 min_area_list.append(pos)
             else:
                 continue
-        # for i in range(len(min_area_list)):
-        #     area_dict[dateColumn[min_area_list[i]], 'Min Area'] = min_area
-        #     area_dict[dateColumn[min_area_list[i]], 'Average Area'] = sum_area/len(position_dict.get(year_month, []))
+            # for i in range(len(min_price_list)):
+            #     price_dict[dateColumn[min_price_list[i]], 'Min Price'] = min_price
+            #     price_dict[dateColumn[min_price_list[i]], 'Average Price'] = sum_price/len(position_dict.get(year_month, []))
+
+        # Min area query
+        #for pos in positions:
+            # curr_area_str = floor_area_Column[pos]
+            # if (curr_area_str == 'M'):
+            #     continue
+            # curr_area = int(curr_area_str)
+            # sum_area = curr_area + sum_area
+            # std_area.append(curr_area)
+            # #print("curr_area: ", curr_area)    
+            # if curr_area <= min_area:
+            #     min_area_list = []
+            #     min_area = curr_area
+            #     min_area_list.append(pos)
+            # else:
+            #     continue
+            # for i in range(len(min_area_list)):
+            #     area_dict[dateColumn[min_area_list[i]], 'Min Area'] = min_area
+            #     area_dict[dateColumn[min_area_list[i]], 'Average Area'] = sum_area/len(position_dict.get(year_month, []))
+            
+    # Adding calculated statistics back into dictionaries
     for i in range(len(min_price_list)):
             price_dict[dateColumn[min_price_list[i]], 'Min Price'] = min_price
+            #price_dict[dateColumn[min_price_list[i]], 'Average Price'] = sum_price/sum(len(value) for value in position_dict.values())
             price_dict[dateColumn[min_price_list[i]], 'Average Price'] = sum_price/count
             price_dict[dateColumn[min_price_list[i]], 'Standard Deviation of Price'] = statistics.stdev(std_price)
 
     for i in range(len(min_area_list)):
             area_dict[dateColumn[min_area_list[i]], 'Min Area'] = min_area
             area_dict[dateColumn[min_area_list[i]], 'Average Area'] = sum_area/count
+            #area_dict[dateColumn[min_area_list[i]], 'Average Area'] = sum_area/sum(len(value) for value in position_dict.values())
             area_dict[dateColumn[min_area_list[i]], 'Standard Deviation of Area'] = statistics.stdev(std_area)
 
     end_time = time.time()    
@@ -194,17 +228,14 @@ def main():
         writer = csv.writer(f)
         writer.writerow(header)
         for key, value in price_dict.items():
-            year, month = key[0].split('-')
-            writer.writerow([year,month,location,key[1],value])
+            year, date_month = key[0].split('-')
+            writer.writerow([year,rangeDict[month][0],location,key[1],value])
 
         for key, value in area_dict.items():
-            year, month = key[0].split('-')
-            year, month = key[0].split('-')
-            writer.writerow([year,month,location,key[1],value])
-
+            year, date_month = key[0].split('-')
+            writer.writerow([year,rangeDict[month][0],location,key[1],value])
 
     end_time = time.time()
-
     print(f'Time taken for result saving: {round(end_time-start_time,4)}s')
 
 

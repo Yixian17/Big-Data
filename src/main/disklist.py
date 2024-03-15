@@ -13,7 +13,9 @@ class DiskList(object):
         self.cache = []
         self.cache_size = cache_size
         self.cache_index = 0
+        #Use this to see the temp files being created
         self.tempfile = tempfile.TemporaryFile(dir=tmp_dir)
+        #self.temp_file = tempfile.TemporaryFile(dir=tmp_dir)
 
     def __del__(self):
         """
